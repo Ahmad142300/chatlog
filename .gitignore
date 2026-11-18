@@ -1,0 +1,13 @@
+# Build & Tooling
+/build/
+/.dart_tool/
+/.flutter-plugins
+/.flutter-plugins-dependencies
+
+# Signing Secrets & Local Configs
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+ios/*.p12
+ios/*.mobileprovision
+.env

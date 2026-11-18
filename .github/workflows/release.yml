@@ -1,0 +1,142 @@
+name: Production Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write # Required to create GitHub Releases and attach binaries
+
+jobs:
+  # 1. Android & Web (Linux Runner)
+  build-android-and-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - run: flutter pub get
+
+      # Decode Android Keystore from GitHub Secrets
+      - name: Configure Android Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_PROPERTIES: ${{ secrets.ANDROID_KEY_PROPERTIES }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          echo "$KEY_PROPERTIES" > android/key.properties
+
+      - name: Build Android App Bundle & APK
+        run: |
+          flutter build appbundle --release
+          flutter build apk --release --split-per-abi
+
+      - name: Build Web Release
+        run: flutter build web --release
+
+      - name: Package Web Build
+        run: tar -czf personal_chat_log-web-${{ github.ref_name }}.tar.gz -C build/web .
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/app/outputs/bundle/release/app-release.aab
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            personal_chat_log-web-${{ github.ref_name }}.tar.gz
+
+  # 2. Desktop Linux (Linux Runner)
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux GTK dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: flutter build linux --release
+      - run: tar -czf personal_chat_log-linux-x64-${{ github.ref_name }}.tar.gz -C build/linux/x64/release/bundle .
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: personal_chat_log-linux-x64-${{ github.ref_name }}.tar.gz
+
+  # 3. Desktop Windows (Windows Runner)
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Zip Windows Release
+        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath personal_chat_log-windows-x64-${{ github.ref_name }}.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: personal_chat_log-windows-x64-${{ github.ref_name }}.zip
+
+  # 4. iOS & macOS (macOS Runner - requires Apple Signing Secrets)
+  build-apple:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+
+      - name: Import Apple Signing Certificate & Provisioning Profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+
+      - name: Build Signed iOS IPA
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      - name: Build macOS App
+        run: flutter build macos --release
+
+      - name: Package macOS App
+        run: tar -czf personal_chat_log-macos-${{ github.ref_name }}.tar.gz -C build/macos/Build/Products/Release personal_chat_log.app
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/ios/ipa/*.ipa
+            personal_chat_log-macos-${{ github.ref_name }}.tar.gz
