@@ -14,6 +14,7 @@ import 'package:uuid/uuid.dart';
 import '../services/device_registration.dart';
 import '../services/models.dart';
 import '../services/device_identity.dart';
+import '../services/update_ui.dart';
 import 'login.dart';
 
 class ChatLogPage extends StatefulWidget {
@@ -311,7 +312,17 @@ class _ChatLogPageState extends State<ChatLogPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chat Log'),
-        actions: resetButton(context),
+        actions: [
+          resetButton(context),
+          IconButton(
+            icon: const Icon(
+              Icons.system_update,
+              color: Color.fromARGB(255, 14, 236, 37),
+            ),
+            tooltip: 'Check for Updates',
+            onPressed: () => UpdateUI.checkWithFeedback(context),
+          ),
+        ],
       ),
       backgroundColor: Colors.grey.shade800,
       body: Column(
@@ -687,40 +698,38 @@ class _ChatLogPageState extends State<ChatLogPage> {
   }
 }
 
-List<Widget> resetButton(BuildContext context) {
-  return [
-    IconButton(
-      icon: const Icon(Icons.cleaning_services, color: Colors.red),
-      tooltip: 'Reset App Identity',
-      onPressed: () async {
-        final db = await DatabaseService().database;
+Widget resetButton(BuildContext context) {
+  return IconButton(
+    icon: const Icon(Icons.cleaning_services, color: Colors.red),
+    tooltip: 'Reset App Identity',
+    onPressed: () async {
+      final db = await DatabaseService().database;
 
-        try {
-          // 1. Wipe database tables in child-to-parent order
-          await db.transaction((txn) async {
-            await txn.delete('attachments');
-            await txn.delete('messages');
-            await txn.delete('devices');
-          });
+      try {
+        // 1. Wipe database tables in child-to-parent order
+        await db.transaction((txn) async {
+          await txn.delete('attachments');
+          await txn.delete('messages');
+          await txn.delete('devices');
+        });
 
-          // 2. Clear secure storage and RAM cache only after DB succeeds
-          await DeviceRegistrationService.clearDeviceRegistration();
+        // 2. Clear secure storage and RAM cache only after DB succeeds
+        await DeviceRegistrationService.clearDeviceRegistration();
 
-          if (context.mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => LoginPage(db: db)),
-            );
-          }
-        } catch (e) {
-          debugPrint('Failed to reset app identity: $e');
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => LoginPage(db: db)),
+          );
         }
-        // 3. Optionally, you can also delete the media directory to free up space
-        final Directory mediaDir = await getAppMediaDirectory();
-        if (await mediaDir.exists()) {
-          await mediaDir.delete(recursive: true).catchError((_) {});
-        }
-      },
-    ),
-  ];
+      } catch (e) {
+        debugPrint('Failed to reset app identity: $e');
+      }
+      // 3. Optionally, you can also delete the media directory to free up space
+      final Directory mediaDir = await getAppMediaDirectory();
+      if (await mediaDir.exists()) {
+        await mediaDir.delete(recursive: true).catchError((_) {});
+      }
+    },
+  );
 }

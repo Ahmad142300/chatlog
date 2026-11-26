@@ -23,12 +23,8 @@ class UpdateService {
   static const String _repoOwner = 'Ahmad142300';
   static const String _repoName = 'chatlog';
 
-  // If your repo is private, pass a Fine-Grained Personal Access Token (Read-only Contents)
-  static const String? _githubToken = String.fromEnvironment('_githubToken');
-
   static Map<String, String> get _headers => {
     'Accept': 'application/vnd.github+json',
-    if (_githubToken != null) 'Authorization': 'Bearer $_githubToken',
   };
 
   /// Checks GitHub Releases for a newer version than currently installed
