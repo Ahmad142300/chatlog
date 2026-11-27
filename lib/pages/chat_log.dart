@@ -317,7 +317,7 @@ class _ChatLogPageState extends State<ChatLogPage> {
           IconButton(
             icon: const Icon(
               Icons.system_update,
-              color: Color.fromARGB(255, 5, 120, 16),
+              color: Color.fromARGB(255, 13, 222, 34),
             ),
             tooltip: 'Check for Updates',
             onPressed: () => UpdateUI.checkWithFeedback(context),
