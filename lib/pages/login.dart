@@ -3,6 +3,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../services/device_registration.dart';
 import '../services/models.dart';
 import 'chat_log.dart';
+import '../services/update_ui.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key, required this.db});
@@ -13,7 +14,19 @@ class LoginPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
+      appBar: AppBar(
+        title: const Text('Login'),
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.system_update,
+              color: Color.fromARGB(255, 13, 222, 34),
+            ),
+            tooltip: 'Check for Updates',
+            onPressed: () => UpdateUI.checkWithFeedback(context),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.only(bottom: 32.0, left: 16.0, right: 16.0),
         child: Center(
